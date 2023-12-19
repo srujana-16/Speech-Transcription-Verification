@@ -43,8 +43,7 @@ If you want to run the application locally without Docker for development purpos
 - Open [http://localhost:3000](http://localhost:3000) to view it in the browser.
   
 ## Interface - // add updated image 
-![alt text](https://github.com/ttheshreeyasingh/Speech-Transcription-Verification/blob/main/frontend/speech-transcription-app/public/preview.png)
-
+![alt text](https://github.com/srujana-16/Speech-Transcription-Verification/blob/main/frontend/speech-transcription-app/public/preview.png)
 
 ## Tech Stack
 - Programming Languages: Python for backend development, JavaScript for fron-
