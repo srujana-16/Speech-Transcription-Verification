@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import './App.css';
 import Navbar from './components/Navbar';
 import AudioPlayerWithTextForm from './components/AudioPlayerWithTextForm';
@@ -6,12 +6,21 @@ import Alert from './components/Alert';
 import Login from './components/Login/Login';
 import { BrowserRouter as Router, Switch } from 'react-router-dom';
 import Navigation from './components/Navigation';
+import axios from 'axios';
 
 function App() {
+  const [text, setText] = useState('Loading...');
+  const [audioSrc, setAudioSrc] = useState(null);
+  const [isAudio, setIsAudio] = useState(false);
   const [mode, setMode] = useState('light');
   const [alert, setAlert] = useState(null);
   const [isLoggedIn, setIsLoggedIn] = useState(localStorage.getItem('isLoggedIn') === 'true');
   const [selectedChunk, setSelectedChunk] = useState(null);
+  const [numberOfTranscripts, setNumberOfTranscripts] = useState(0); 
+  const [chunkColors, setChunkColors] = useState(Array(57).fill('')); // For changing the color of the chunk buttons
+  // Using localStorage API to store the last transcript number and retrieve it when the application starts again
+  const [transcriptNumber, setTranscriptNumber] = useState(parseInt(localStorage.getItem('transcriptNumber')) || 1);
+
 
   const [loginData, setLoginData] = useState({
     name: '',
@@ -41,6 +50,22 @@ function App() {
     }
   };
 
+  // Fetch the number of transcripts in the database to display in navigation panel
+  useEffect(() => {
+
+    // Fetch the list of transcript files 
+    axios.get(`${process.env.PUBLIC_URL}/Original data/transcripts/`)
+      .then(response => {
+        // Filter and count the transcript files based on your naming convention
+        const transcriptFiles = response.data.filter(file => file.startsWith('transcript'));
+        setNumberOfTranscripts(transcriptFiles.length);
+      })
+      .catch(error => {
+        console.error('Error fetching transcript files', error);
+      });
+  }, []);
+  
+
   const handleLogin = () => {
     setIsLoggedIn(true);
     localStorage.setItem('isLoggedIn', 'true'); // Set login state in localStorage
@@ -54,41 +79,53 @@ function App() {
     }
   };
 
-  // Function to handle download of login data
-  const handleDownloadLoginData = () => {
+  const handleSendLoginDataEmail = () => {
     const loginData = localStorage.getItem('loginData'); // Retrieve the login data from local storage
-
+    
     if (loginData) {
-      // Create a Blob with the login data as text
-      const blob = new Blob([JSON.stringify(JSON.parse(loginData), null, 2)], { type: 'text/plain' });
-
-      // Create a URL for the Blob
-      const url = window.URL.createObjectURL(blob);
-
-      // Create a download link
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'login_data.txt'; // Set the filename for the downloaded text file
-      a.style.display = 'none';
-
-      // Append the download link to the document and trigger the download
-      document.body.appendChild(a);
-      a.click();
-
-      // Clean up by revoking the Blob URL
-      window.URL.revokeObjectURL(url);
+      // Now, make a request to your server to send the email
+      fetch('http://localhost:5000/send-login-data', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ loginData }), // Send the login data to the server
+      })
+        .then((response) => response.json())
+        .then((data) => {
+          console.log(data); // Log the response from the server
+        })
+        .catch((error) => {
+          console.error('Error sending login data:', error);
+        });
     } else {
       alert('No login data found.');
     }
   };
-
-  // Inside Navigation.js
-  const handleChunkSelect = (chunkNumber) => {
-    console.log(`Selected Chunk: ${chunkNumber}`);
+  
+  const handleChunkSelect = async (chunkNumber) => {
+    console.log(`chunk number: ${chunkNumber}`);
     setSelectedChunk(chunkNumber);
+    setTranscriptNumber(chunkNumber);
+    setIsAudio(true);
+    console.log(`transcriptNumber: ${chunkNumber}`)
+    try {
+
+      const responseText = await axios.get(`${process.env.PUBLIC_URL}/Original data/transcripts/transcript${chunkNumber.toString().padStart(4, '0')}.txt`);
+      setText(responseText.data);
+
+      const responseAudio = await axios.get(`${process.env.PUBLIC_URL}/Original data/audio_chunks/chunk${chunkNumber.toString().padStart(4, '0')}.wav`, {
+        responseType: 'blob'
+      });
+      const blob = new Blob([responseAudio.data]);
+      const url = URL.createObjectURL(blob);
+      setAudioSrc(url);
+      localStorage.setItem('transcriptNumber', chunkNumber);
+    } catch (error) {
+      console.error(error);
+    }
   };
 
-  
   return (
     <Router>
       <div className="app">
@@ -99,12 +136,19 @@ function App() {
         )}
 
         {isLoggedIn && (
-          <div className="download-button" onClick={handleDownloadLoginData}>
-            Download Login Data
+          <div className="download-button" onClick={handleSendLoginDataEmail}>
+            Email Login Data
           </div>
         )}
 
-        {isLoggedIn && <Navigation numberOfChunks={100} handleChunkSelect={handleChunkSelect} />}
+        {isLoggedIn && (
+          <Navigation
+            numberOfChunks={numberOfTranscripts}
+            handleChunkSelect={handleChunkSelect}
+            chunkColors={chunkColors}
+            setChunkColors={setChunkColors} // Pass setChunkColors to Navigation
+          />
+        )}
         <div className="content">
           <Navbar title="Speech Transcription Verification App" mode={mode} toggleMode={toggleMode} key={new Date()} />
           <Alert alert={alert} />
@@ -112,7 +156,18 @@ function App() {
           <div className="App container py-3">
             {isLoggedIn ? (
               <Switch>
-                <AudioPlayerWithTextForm selectedChunk={selectedChunk} />
+                <AudioPlayerWithTextForm
+                  selectedChunk={selectedChunk}
+                  transcriptNumber={transcriptNumber}
+                  setTranscriptNumber={setTranscriptNumber}
+                  text={text}
+                  audioSrc={audioSrc}
+                  isAudio={isAudio}
+                  setText={setText}
+                  setAudioSrc={setAudioSrc}
+                  setIsAudio={setIsAudio}
+                  setChunkColors={setChunkColors}
+                />
               </Switch>
             ) : (
               <Login onLogin={handleLogin} />

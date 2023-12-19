@@ -1,21 +1,18 @@
-// The audio chunks and the transcriptions are fetched from the 
-// 'Original data' folder which is present in the public folder
-// Works for any number of transcripts and audio files. 
 import React, { useState, useEffect } from 'react';
 import VirtualKeyboard from './keyboard';
 import axios from 'axios';
 
-
 export default function TextForm(props) {
-    const [text, setText] = useState('Loading...');
-    const [audioSrc, setAudioSrc] = useState(null);
-    const [isAudio, setIsAudio] = useState(false);
-    const selectedChunk = props.selectedChunk;
-     // Using localStorage API to store the last transcript number and retrieve it when the application starts again
-    const [transcriptNumber, setTranscriptNumber] = useState(parseInt(localStorage.getItem('transcriptNumber')) || 1);
-    // const [transcriptNumber, setTranscriptNumber] = useState(selectedChunk || 1);
+    const text = props.text;
+    const setText = props.setText;
+    const audioSrc = props.audioSrc;
+    const setAudioSrc = props.setAudioSrc;
+    const isAudio = props.isAudio;
+    const setIsAudio = props.setIsAudio;
+    const transcriptNumber = props.transcriptNumber;
+    const setTranscriptNumber = props.setTranscriptNumber;
     const [keyboardVisible, setKeyboardVisible] = useState(false);
-    
+
     useEffect(() => {
         const fetchText = async () => {
             try {
@@ -46,44 +43,157 @@ export default function TextForm(props) {
         } else {
             fetchText();
         }
-    }, [transcriptNumber, props.isAudio]);
-
-
-    // Using localStorage API to store the last transcript number and retrieve it when the application starts again
-    // const [transcriptNumber, setTranscriptNumber] = useState(parseInt(localStorage.getItem('transcriptNumber')) || 1);
-   
-    // clear the local storage
-    // localStorage.clear();
-    // setTranscriptNumber(1); // Reset transcript number to 1
-    // window.location.reload();
+    }, [transcriptNumber, props.isAudio, setAudioSrc, setIsAudio, setText]);
 
     // Save button
     const handleSave = () => {
-        axios.post('http://localhost:5000/save-text', {
-            text: text,
-            transcriptNumber: transcriptNumber // Add this line
-        })
-            .then(response => {
-                console.log(response.data);
-            })
-            .catch(error => {
-                console.log(error);
-            });
+        // Create a FormData object to send both text and audio
+        const formData = new FormData();
+        formData.append('text', text);
+        formData.append('transcriptNumber', transcriptNumber);
+
+        // If there's an audio source, append it to the form data
+        if (audioSrc) {
+            fetch(audioSrc)
+                .then((response) => response.blob())
+                .then((audioBlob) => {
+                    formData.append('audio', audioBlob, 'audio.wav');
+
+                    // Send the form data with both text and audio
+                    axios
+                        .post('http://localhost:5000/save-text-and-audio', formData, {
+                            headers: {
+                                'Content-Type': 'multipart/form-data',
+                            },
+                        })
+                        .then((response) => {
+                            console.log(response.data);
+                            // Set the chunk color to green upon successful save
+                            props.setChunkColors((prevColors) => {
+                                const updatedColors = [...prevColors];
+                                updatedColors[transcriptNumber - 1] = 'green';
+
+                                // Store updatedChunkColors in localStorage
+                                localStorage.setItem('chunkColors', JSON.stringify(updatedColors));
+
+                                return updatedColors;
+                            });
+
+                            // Call the onSave function to update the saved count
+                            props.onSave();
+                        })
+                        .catch((error) => {
+                            console.log(error);
+                        });
+                })
+                .catch((error) => {
+                    console.log(error);
+                });
+        }
+        else {
+            // If there's no audio source, send only the text
+            axios
+                .post('http://localhost:5000/save-text', {
+                    text: text,
+                    transcriptNumber: transcriptNumber,
+                })
+                .then((response) => {
+                    console.log(response.data);
+                    // Set the chunk color to green upon successful save
+                    props.setChunkColors((prevColors) => {
+                        const updatedColors = [...prevColors];
+                        updatedColors[transcriptNumber - 1] = 'green';
+
+                        // Store updatedChunkColors in localStorage
+                        localStorage.setItem('chunkColors', JSON.stringify(updatedColors));
+
+                        return updatedColors;
+                    });
+
+                    // Call the onSave function to update the saved count
+                    props.onSave();
+                })
+                .catch((error) => {
+                    console.log(error);
+                });
+        }
     };
+
+
 
     // Discard button
     const handleDiscard = () => {
-        axios.post('http://localhost:5000/discard-text', {
-            text: text,
-            transcriptNumber: transcriptNumber // Add this line
-        })
-            .then(response => {
-                console.log(response.data);
-            })
-            .catch(error => {
-                console.log(error);
-            });
+        // Create a FormData object to send both text and audio
+        const formData = new FormData();
+        formData.append('text', text);
+        formData.append('transcriptNumber', transcriptNumber);
+
+        // If there's an audio source, append it to the form data
+        if (audioSrc) {
+            fetch(audioSrc)
+                .then((response) => response.blob())
+                .then((audioBlob) => {
+                    formData.append('audio', audioBlob, 'audio.wav');
+
+                    // Send the form data with both text and audio
+                    axios
+                        .post('http://localhost:5000/discard-text-and-audio', formData, {
+                            headers: {
+                                'Content-Type': 'multipart/form-data',
+                            },
+                        })
+                        .then((response) => {
+                            console.log(response.data);
+                            // Set the chunk color to red upon successful discard
+                            props.setChunkColors((prevColors) => {
+                                const updatedColors = [...prevColors];
+                                updatedColors[transcriptNumber - 1] = 'red';
+
+                                // Store updatedChunkColors in localStorage
+                                localStorage.setItem('chunkColors', JSON.stringify(updatedColors));
+
+                                return updatedColors;
+                            });
+
+                            // Call the onDiscard function to update the discarded count
+                            props.onDiscard();
+                        })
+                        .catch((error) => {
+                            console.log(error);
+                        });
+                })
+                .catch((error) => {
+                    console.log(error);
+                });
+        } else {
+            // If there's no audio source, send only the text
+            axios
+                .post('http://localhost:5000/discard-text', {
+                    text: text,
+                    transcriptNumber: transcriptNumber,
+                })
+                .then((response) => {
+                    console.log(response.data);
+                    // Set the chunk color to red upon successful discard
+                    props.setChunkColors((prevColors) => {
+                        const updatedColors = [...prevColors];
+                        updatedColors[transcriptNumber - 1] = 'red';
+
+                        // Store updatedChunkColors in localStorage
+                        localStorage.setItem('chunkColors', JSON.stringify(updatedColors));
+
+                        return updatedColors;
+                    });
+
+                    // Call the onDiscard function to update the discarded count
+                    props.onDiscard();
+                })
+                .catch((error) => {
+                    console.log(error);
+                });
+        }
     };
+
 
 
     // Next button
@@ -99,7 +209,7 @@ export default function TextForm(props) {
             console.error(error);
         }
     };
-    
+
     const handleTextareaClick = () => {
         setKeyboardVisible(true);
     };
@@ -107,15 +217,15 @@ export default function TextForm(props) {
     const handleBackspace = () => {
         // Define the logic for handling backspace here
         setText(prevText => prevText.slice(0, -1)); // Removes the last character
-      };
-      
-      const handleSpace = () => {
+    };
+
+    const handleSpace = () => {
         setText(prevText => prevText + ' '); // Adds a space
-      };
-      
-      const handleEnter = () => {
+    };
+
+    const handleEnter = () => {
         setKeyboardVisible(false); // Hide the virtual keyboard
-      };
+    };
 
     return (
         <>
@@ -131,25 +241,25 @@ export default function TextForm(props) {
                     )}
                     <h3>Transcript {transcriptNumber}</h3>
                     <div onClick={handleTextareaClick} style={{ position: 'relative' }}>
-                    <textarea
-                        className='form-control'
-                        style={{
-                            backgroundColor: props.mode === 'dark' ? '#13466e' : 'white',
-                            color: props.mode === 'dark' ? 'white' : '#042743',
-                            width: '45rem',
-                        }}
-                        id='myBox'
-                        rows='8'
-                        onChange={(event) => setText(event.target.value)}
-                        value={text}
-                    />
-                     {keyboardVisible && (
-              <VirtualKeyboard onChange={setText} 
-              onBackspace={handleBackspace}
-              onSpace={handleSpace}
-              onEnter={handleEnter}
-              />
-            )}
+                        <textarea
+                            className='form-control'
+                            style={{
+                                backgroundColor: props.mode === 'dark' ? '#13466e' : 'white',
+                                color: props.mode === 'dark' ? 'white' : '#042743',
+                                width: '45rem',
+                            }}
+                            id='myBox'
+                            rows='8'
+                            onChange={(event) => setText(event.target.value)}
+                            value={text}
+                        />
+                        {keyboardVisible && (
+                            <VirtualKeyboard onChange={setText}
+                                onBackspace={handleBackspace}
+                                onSpace={handleSpace}
+                                onEnter={handleEnter}
+                            />
+                        )}
                     </div>
                 </div>
                 <div className="d-flex justify-content-center">
